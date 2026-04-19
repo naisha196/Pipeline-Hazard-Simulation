@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Plaksha Orbital Pipeline Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+<div class="grid-overlay"></div>
+
+<!-- ══════════════ HEADER ══════════════ -->
+<header class="site-header">
+  <div class="header-glow"></div>
+  <div class="header-inner">
+    <div class="header-chips">
+      <span class="chip">CS2011</span>
+      <span class="chip">Plaksha University</span>
+    </div>
+    <div class="header-center">
+      <div class="logo-orb">
+        <svg viewBox="0 0 56 56" fill="none">
+          <circle cx="28" cy="28" r="25" stroke="currentColor" stroke-width="1" stroke-dasharray="3 2.5" opacity="0.6"/>
+          <circle cx="28" cy="28" r="16" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+          <circle cx="28" cy="28" r="5" fill="currentColor" opacity="0.9"/>
+          <circle cx="28" cy="3"  r="2.5" fill="currentColor"/>
+          <circle cx="53" cy="28" r="1.8" fill="currentColor" opacity="0.5"/>
+          <circle cx="3"  cy="28" r="1.8" fill="currentColor" opacity="0.5"/>
+          <circle cx="28" cy="53" r="1.5" fill="currentColor" opacity="0.4"/>
+        </svg>
+      </div>
+      <div class="title-block">
+        <h1>ORBITAL PIPELINE DECK</h1>
+        <p>Pipeline Hazard Simulation System</p>
+      </div>
+    </div>
+    <div class="header-chips right">
+      <span class="chip">Ankur Nahar</span>
+      <span class="chip chip-live"><span class="live-dot"></span>LIVE</span>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════ APP SHELL ══════════════ -->
+<main class="app-shell">
+
+  <!-- ─── LEFT COLUMN ─── -->
+  <div class="col-left">
+
+    <!-- 01 · INSTRUCTION SETUP -->
+    <section class="card" id="section-instructions">
+      <div class="card-head">
+        <div class="card-head-l">
+          <span class="sec-num">01</span>
+          <h2>Instruction Setup</h2>
+        </div>
+        <span class="badge">MAX 10</span>
+      </div>
+
+      <div class="count-bar">
+        <span class="field-lbl">Instructions</span>
+        <div class="stepper">
+          <button class="step-btn" id="btnDecCount">−</button>
+          <span class="step-val" id="instrCount">3</span>
+          <button class="step-btn" id="btnIncCount">+</button>
+        </div>
+        <button class="btn-ghost" id="btnGenerate">↺ Rebuild</button>
+      </div>
+
+      <div id="instrFields" class="instr-fields"></div>
+
+      <div class="syntax-panel">
+        <div class="syntax-title">Accepted Syntax</div>
+        <div class="syntax-grid">
+          <div class="syn"><span class="syn-op">ADD</span><span class="syn-arg">Rd, Rs1, Rs2</span></div>
+          <div class="syn"><span class="syn-op">SUB</span><span class="syn-arg">Rd, Rs1, Rs2</span></div>
+          <div class="syn"><span class="syn-op">LW</span><span class="syn-arg">Rd, offset(Rs)</span></div>
+          <div class="syn"><span class="syn-op">SW</span><span class="syn-arg">Rs, offset(Rb)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 · PIPELINE CONFIG -->
+    <section class="card" id="section-config">
+      <div class="card-head">
+        <div class="card-head-l">
+          <span class="sec-num">02</span>
+          <h2>Pipeline Configuration</h2>
+        </div>
+      </div>
+
+      <div class="cfg-group">
+        <div class="field-lbl">Pipeline Type</div>
+        <div class="seg" id="pipelineToggle">
+          <button class="seg-btn active" data-value="5">
+            <span class="seg-name">5-Stage</span>
+            <span class="seg-sub">IF · ID · EX · MEM · WB</span>
+          </button>
+          <button class="seg-btn" data-value="4">
+            <span class="seg-name">4-Stage</span>
+            <span class="seg-sub">IF · ID · EX · MEM/WB</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="cfg-group" style="margin-top:16px">
+        <div class="field-lbl">Hazard Resolution</div>
+        <div class="seg" id="forwardingToggle">
+          <button class="seg-btn active" data-value="stall">
+            <span class="seg-name">Stall Only</span>
+            <span class="seg-sub">Insert bubbles</span>
+          </button>
+          <button class="seg-btn" data-value="forward">
+            <span class="seg-name">Forwarding</span>
+            <span class="seg-sub">EX→EX bypass</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="pipe-vis" id="pipeDiagram">
+        <div class="pv-stage pv-if">IF</div>
+        <div class="pv-arrow">›</div>
+        <div class="pv-stage pv-id">ID</div>
+        <div class="pv-arrow">›</div>
+        <div class="pv-stage pv-ex">EX</div>
+        <div class="pv-arrow">›</div>
+        <div class="pv-stage pv-mem">MEM</div>
+        <div class="pv-arrow">›</div>
+        <div class="pv-stage pv-wb" id="wbLabel">WB</div>
+      </div>
+    </section>
+
+    <!-- 03 · CONTROLS -->
+    <section class="card" id="section-controls">
+      <div class="card-head">
+        <div class="card-head-l">
+          <span class="sec-num">03</span>
+          <h2>Simulation Controls</h2>
+        </div>
+      </div>
+
+      <div class="ctrl-row">
+        <button class="btn-run"   id="btnRun">  ▶ RUN  </button>
+        <button class="btn-step"  id="btnStep"> ⏭ STEP </button>
+        <button class="btn-reset" id="btnReset">↺ RESET</button>
+      </div>
+
+      <div class="meters">
+        <div class="meter">
+          <div class="meter-lbl">CURRENT CYCLE</div>
+          <div class="meter-num" id="cycleCounter">—</div>
+          <div class="meter-track"><div class="meter-fill" id="cycleBar" style="width:0%"></div></div>
+        </div>
+        <div class="meter-sep"></div>
+        <div class="meter">
+          <div class="meter-lbl">TOTAL CYCLES</div>
+          <div class="meter-num" id="totalCycles">—</div>
+        </div>
+      </div>
+
+      <div id="simStatus" class="sim-status"></div>
+    </section>
+
+  </div><!-- /col-left -->
+
+  <!-- ─── RIGHT COLUMN ─── -->
+  <div class="col-right">
+
+    <!-- 04 · HAZARD REPORT -->
+    <section class="card hidden" id="section-hazards">
+      <div class="card-head">
+        <div class="card-head-l">
+          <span class="sec-num">04</span>
+          <h2>Detected Hazards</h2>
+        </div>
+        <span class="badge badge-red" id="hazardCount">0</span>
+      </div>
+      <div id="hazardList" class="hazard-list"></div>
+    </section>
+
+    <!-- 05 · PIPELINE VISUALIZATION -->
+    <section class="card hidden" id="section-viz">
+      <div class="card-head">
+        <div class="card-head-l">
+          <span class="sec-num">05</span>
+          <h2>Pipeline Visualization</h2>
+        </div>
+        <span class="badge" id="vizMode">5-STAGE · STALL</span>
+      </div>
+
+      <div class="table-scroll">
+        <table id="pipelineTable" class="ptable">
+          <thead id="tableHead"></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="legend">
+        <span class="leg l-if">IF</span>
+        <span class="leg l-id">ID</span>
+        <span class="leg l-ex">EX</span>
+        <span class="leg l-mem">MEM</span>
+        <span class="leg l-wb">WB</span>
+        <span class="leg l-stall">STALL</span>
+        <span class="leg l-fwd">FWD·EX</span>
+        <span class="leg l-empty">empty</span>
+      </div>
+    </section>
+
+    <!-- EMPTY STATE -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-art">
+        <svg viewBox="0 0 200 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Background grid lines -->
+          <line x1="0" y1="20" x2="200" y2="20" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="50" x2="200" y2="50" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="80" x2="200" y2="80" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="110" x2="200" y2="110" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <!-- Stage blocks row 1 -->
+          <rect x="10"  y="28" width="28" height="16" rx="3" fill="rgba(77,184,255,0.12)" stroke="rgba(77,184,255,0.35)" stroke-width="1"/>
+          <text x="24"  y="40" text-anchor="middle" fill="rgba(77,184,255,0.8)"  font-size="8" font-family="monospace" font-weight="600">IF</text>
+          <rect x="48"  y="28" width="28" height="16" rx="3" fill="rgba(64,224,160,0.1)" stroke="rgba(64,224,160,0.3)" stroke-width="1"/>
+          <text x="62"  y="40" text-anchor="middle" fill="rgba(64,224,160,0.8)"  font-size="8" font-family="monospace" font-weight="600">ID</text>
+          <rect x="86"  y="28" width="28" height="16" rx="3" fill="rgba(255,170,64,0.1)" stroke="rgba(255,170,64,0.35)" stroke-width="1"/>
+          <text x="100" y="40" text-anchor="middle" fill="rgba(255,170,64,0.8)"  font-size="8" font-family="monospace" font-weight="600">EX</text>
+          <rect x="124" y="28" width="28" height="16" rx="3" fill="rgba(204,136,255,0.1)" stroke="rgba(204,136,255,0.3)" stroke-width="1"/>
+          <text x="138" y="40" text-anchor="middle" fill="rgba(204,136,255,0.8)" font-size="8" font-family="monospace" font-weight="600">MEM</text>
+          <rect x="162" y="28" width="28" height="16" rx="3" fill="rgba(130,130,255,0.1)" stroke="rgba(130,130,255,0.3)" stroke-width="1"/>
+          <text x="176" y="40" text-anchor="middle" fill="rgba(130,130,255,0.8)" font-size="8" font-family="monospace" font-weight="600">WB</text>
+          <!-- Stage blocks row 2 -->
+          <rect x="48"  y="58" width="28" height="16" rx="3" fill="rgba(77,184,255,0.12)" stroke="rgba(77,184,255,0.35)" stroke-width="1"/>
+          <text x="62"  y="70" text-anchor="middle" fill="rgba(77,184,255,0.8)"  font-size="8" font-family="monospace" font-weight="600">IF</text>
+          <rect x="86"  y="58" width="28" height="16" rx="3" fill="rgba(255,64,96,0.12)" stroke="rgba(255,64,96,0.45)" stroke-width="1"/>
+          <text x="100" y="70" text-anchor="middle" fill="rgba(255,64,96,0.9)"   font-size="7" font-family="monospace" font-weight="700">STALL</text>
+          <rect x="124" y="58" width="28" height="16" rx="3" fill="rgba(64,224,160,0.1)" stroke="rgba(64,224,160,0.3)" stroke-width="1"/>
+          <text x="138" y="70" text-anchor="middle" fill="rgba(64,224,160,0.8)"  font-size="8" font-family="monospace" font-weight="600">ID</text>
+          <!-- Stage blocks row 3 -->
+          <rect x="86"  y="88" width="28" height="16" rx="3" fill="rgba(77,184,255,0.12)" stroke="rgba(77,184,255,0.35)" stroke-width="1"/>
+          <text x="100" y="100" text-anchor="middle" fill="rgba(77,184,255,0.8)" font-size="8" font-family="monospace" font-weight="600">IF</text>
+          <rect x="124" y="88" width="28" height="16" rx="3" fill="rgba(0,255,153,0.1)"  stroke="rgba(0,255,153,0.35)" stroke-width="1"/>
+          <text x="138" y="100" text-anchor="middle" fill="rgba(0,255,153,0.8)"  font-size="7" font-family="monospace" font-weight="700">FWD</text>
+          <!-- Connecting arrows -->
+          <line x1="38" y1="36" x2="48" y2="36" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-dasharray="2 2"/>
+          <line x1="76" y1="36" x2="86" y2="36" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-dasharray="2 2"/>
+          <line x1="114" y1="36" x2="124" y2="36" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-dasharray="2 2"/>
+          <line x1="152" y1="36" x2="162" y2="36" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-dasharray="2 2"/>
+        </svg>
+      </div>
+      <p class="empty-ttl">Simulation not yet started</p>
+      <p class="empty-sub">Enter instructions → choose pipeline → press <strong>RUN</strong> or <strong>STEP</strong></p>
+    </div>
+
+  </div><!-- /col-right -->
+</main>
+
+<footer class="site-footer">
+  Plaksha Orbital Computing Deck &nbsp;·&nbsp; CS2011 Foundations of Computer Systems &nbsp;·&nbsp; Assignment II
+</footer>
+
+<script src="parser.js"></script>
+<script src="hazard.js"></script>
+<script src="scheduler.js"></script>
+<script src="renderer.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
