@@ -14,6 +14,7 @@ const state = {
   currentCycle: 0,
   running:      false,
   runTimer:     null,
+  hazards:      null,
 };
 
 // ── DOM ──
@@ -21,7 +22,7 @@ const $instrFields  = document.getElementById("instrFields");
 const $instrCount   = document.getElementById("instrCount");
 const $btnDecCount  = document.getElementById("btnDecCount");
 const $btnIncCount  = document.getElementById("btnIncCount");
-const $btnGenerate  = document.getElementById("btnGenerate");
+
 const $btnRun       = document.getElementById("btnRun");
 const $btnStep      = document.getElementById("btnStep");
 const $btnReset     = document.getElementById("btnReset");
@@ -45,19 +46,31 @@ const FIELD_CFG = {
 };
 const ALL_OPS = Object.keys(FIELD_CFG);
 
-// Default values for demo
-const DEMO = [
-  { op:"ADD", f:["R1","R2","R3"] },
-  { op:"SUB", f:["R4","R1","R5"] },
-  { op:"LW",  f:["R6","0(R7)"]  },
-  { op:"SW",  f:["R1","4(R8)"]  },
-  { op:"ADD", f:["R9","R4","R6"] },
-  { op:"SUB", f:["R2","R9","R1"] },
-  { op:"LW",  f:["R3","8(R2)"]  },
-  { op:"ADD", f:["R5","R3","R4"] },
-  { op:"SUB", f:["R7","R5","R6"] },
-  { op:"ADD", f:["R8","R7","R9"] },
-];
+const TEST_CASES = {
+  1: [
+    { op:"ADD", f:["R1","R2","R3"] },
+    { op:"SUB", f:["R4","R5","R6"] },
+    { op:"LW",  f:["R7","0(R8)"]  },
+    { op:"SW",  f:["R9","4(R10)"] }
+  ],
+  2: [
+    { op:"ADD", f:["R1","R2","R3"] },
+    { op:"SUB", f:["R4","R1","R5"] },
+    { op:"AND", f:["R6","R1","R7"] }
+  ],
+  3: [
+    { op:"LW",  f:["R1","0(R2)"] },
+    { op:"ADD", f:["R3","R1","R4"] },
+    { op:"SW",  f:["R3","4(R5)"] }
+  ],
+  4: [
+    { op:"ADD", f:["R1","R2","R3"] },
+    { op:"SUB", f:["R4","R1","R5"] },
+    { op:"LW",  f:["R6","8(R1)"] },
+    { op:"ADD", f:["R7","R6","R8"] }
+  ]
+};
+let currentDemo = TEST_CASES[2];
 
 // ── GENERATE INSTRUCTION ROWS ──
 function generateFields() {
@@ -82,7 +95,7 @@ function generateFields() {
       o.value = op; o.textContent = op;
       sel.appendChild(o);
     });
-    const defOp = DEMO[i]?.op || "ADD";
+    const defOp = currentDemo[i]?.op || "ADD";
     sel.value = defOp;
     row.appendChild(sel);
 
@@ -112,7 +125,10 @@ function generateFields() {
 
   // Pre-fill demo values
   document.querySelectorAll(".instr-row").forEach((row, i) => {
-    const demo = DEMO[i]; if (!demo) return;
+    const demo = currentDemo[i]; if (!demo) { 
+       row.querySelectorAll(".instr-input").forEach(inp => inp.value = "");
+       return; 
+    }
     const sel = row.querySelector(".instr-select");
     if (sel.value !== demo.op) {
       sel.value = demo.op;
@@ -142,7 +158,25 @@ $btnDecCount.addEventListener("click", () => {
 $btnIncCount.addEventListener("click", () => {
   if (state.instrCount < 10) { state.instrCount++; $instrCount.textContent = state.instrCount; generateFields(); }
 });
-$btnGenerate.addEventListener("click", () => { generateFields(); setStatus(""); });
+// ── TEST CASES ──
+[1, 2, 3, 4].forEach(id => {
+  document.getElementById(`btnTc${id}`).addEventListener("click", (e) => {
+    // Visual feedback
+    document.querySelectorAll(".tc-buttons .btn-ghost").forEach(b => b.classList.remove("active"));
+    e.target.classList.add("active");
+    
+    currentDemo = TEST_CASES[id];
+    state.instrCount = currentDemo.length;
+    $instrCount.textContent = state.instrCount;
+    generateFields();
+    setStatus(`Loaded Test Case ${id}. Ready to run.`);
+    if (id === 4) {
+      document.querySelector('[data-value="forward"]').click();
+    } else {
+      document.querySelector('[data-value="stall"]').click();
+    }
+  });
+});
 
 // ── PIPELINE TOGGLE ──
 document.getElementById("pipelineToggle").addEventListener("click", e => {
@@ -183,13 +217,59 @@ function runSimulation() {
   if (errors.length) { setStatus("⚠ " + errors[0], "err"); return false; }
   if (!instructions.length) { setStatus("⚠ Enter at least one instruction.", "err"); return false; }
 
-  const result = scheduleInstructions(instructions, state.numStages, state.forwarding);
-  state.schedule    = result.schedule;
-  state.stageNames  = result.stageNames;
-  state.totalCycles = result.totalCycles;
-  state.grid        = buildCellGrid(result.schedule, result.totalCycles, result.stageNames, state.forwarding);
+  const input = {
+    instructions: instructions.map(i => i.raw),
+    pipeline: state.numStages === 4 ? "4-stage" : "5-stage",
+    forwarding: state.forwarding
+  };
+  const engineResult = window.simulateEngine(input);
+  
+  const totalCycles = engineResult.table.length > 0 
+    ? engineResult.table[engineResult.table.length - 1].stages.length - 1 
+    : 0;
+    
+  state.schedule = engineResult.table.map((t, idx) => ({ instr: instructions[idx] }));
+  state.stageNames = engineResult.stages;
+  state.totalCycles = totalCycles;
+  
+  const grid = [];
+  engineResult.table.forEach(t => {
+     const row = new Array(totalCycles + 1).fill("");
+     for (let i = 1; i < t.stages.length; i++) {
+        if (t.stages[i]) row[i] = t.stages[i];
+     }
+     grid.push(row);
+  });
+  
+  engineResult.hazards.forEach(h => {
+     if (h.resolvedBy === "forwarding") {
+        const consumerIdx = engineResult.table.findIndex(t => t.instruction.id === h.to);
+        if (consumerIdx >= 0) {
+           const exCycle = engineResult.table[consumerIdx].stageCycles["EX"];
+           if (exCycle) grid[consumerIdx][exCycle] = "FWD";
+        }
+     }
+  });
+  
+  state.grid = grid;
+  
+  const legacyHazards = engineResult.hazards.map(h => ({
+     producerIdx: parseInt(h.from.substring(1)) - 1,
+     consumerIdx: parseInt(h.to.substring(1)) - 1,
+     producerLabel: h.from,
+     consumerLabel: h.to,
+     register: h.register,
+     isLoadUse: engineResult.parsed.find(p => p.id === h.from).op === "LW",
+     stalls: h.delay,
+     forwarding: h.resolvedBy === "forwarding"
+  }));
+  const hazardReport = [legacyHazards];
+  state.hazards = legacyHazards;
 
-  renderHazards(result.hazardReport, instructions, state.forwarding);
+  renderHazards(hazardReport, instructions, state.forwarding);
+
+  const cpi = (state.totalCycles / instructions.length).toFixed(2);
+  document.getElementById("cpiMetric").textContent = cpi;
 
   $sectionViz.classList.remove("hidden");
   $emptyState.style.display = "none";
@@ -200,7 +280,7 @@ function runSimulation() {
 }
 
 function renderAtCycle(cycle) {
-  renderPipelineTable(state.grid, state.schedule, state.totalCycles, cycle, state.stageNames);
+  renderPipelineTable(state.grid, state.schedule, state.totalCycles, cycle, state.stageNames, state.hazards);
   updateCycleDisplay(cycle || state.totalCycles, state.totalCycles);
 }
 
@@ -256,13 +336,14 @@ $btnStep.addEventListener("click", () => {
 // RESET
 $btnReset.addEventListener("click", () => {
   clearInterval(state.runTimer);
-  Object.assign(state, { running:false, schedule:null, grid:null, currentCycle:0, totalCycles:0 });
+  Object.assign(state, { running:false, schedule:null, grid:null, currentCycle:0, totalCycles:0, hazards:null });
   $btnRun.textContent = "▶ RUN";
   $sectionViz.classList.add("hidden");
   $sectionHaz.classList.add("hidden");
   $emptyState.style.display = "";
   document.getElementById("tableHead").innerHTML = "";
   document.getElementById("tableBody").innerHTML = "";
+  document.getElementById("cpiMetric").textContent = "—";
   updateCycleDisplay(0, 0);
   setStatus("↺ Reset. Configure and run again.");
 });

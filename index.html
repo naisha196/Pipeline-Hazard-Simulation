@@ -68,7 +68,7 @@
           <span class="step-val" id="instrCount">3</span>
           <button class="step-btn" id="btnIncCount">+</button>
         </div>
-        <button class="btn-ghost" id="btnGenerate">↺ Rebuild</button>
+
       </div>
 
       <div id="instrFields" class="instr-fields"></div>
@@ -80,6 +80,16 @@
           <div class="syn"><span class="syn-op">SUB</span><span class="syn-arg">Rd, Rs1, Rs2</span></div>
           <div class="syn"><span class="syn-op">LW</span><span class="syn-arg">Rd, offset(Rs)</span></div>
           <div class="syn"><span class="syn-op">SW</span><span class="syn-arg">Rs, offset(Rb)</span></div>
+        </div>
+      </div>
+      
+      <div class="test-cases-panel" style="margin-top: 16px; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px;">
+        <div class="syntax-title" style="margin-bottom: 8px;">Load Required Test Cases</div>
+        <div class="tc-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <button class="btn-ghost" id="btnTc1" style="width: 100%; justify-content: center; font-size: 11px;">1. Independent</button>
+          <button class="btn-ghost" id="btnTc2" style="width: 100%; justify-content: center; font-size: 11px;">2. Arithmetic RAW</button>
+          <button class="btn-ghost" id="btnTc3" style="width: 100%; justify-content: center; font-size: 11px;">3. Load-Use Hazard</button>
+          <button class="btn-ghost" id="btnTc4" style="width: 100%; justify-content: center; font-size: 11px;">4. Forwarding Demo</button>
         </div>
       </div>
     </section>
@@ -159,6 +169,11 @@
         <div class="meter">
           <div class="meter-lbl">TOTAL CYCLES</div>
           <div class="meter-num" id="totalCycles">—</div>
+        </div>
+        <div class="meter-sep"></div>
+        <div class="meter">
+          <div class="meter-lbl">CPI (PERFORMANCE)</div>
+          <div class="meter-num" id="cpiMetric" style="color: #4db8ff;">—</div>
         </div>
       </div>
 
@@ -261,6 +276,7 @@
   Plaksha Orbital Computing Deck &nbsp;·&nbsp; CS2011 Foundations of Computer Systems &nbsp;·&nbsp; Assignment II
 </footer>
 
+<script src="engine.js"></script>
 <script src="parser.js"></script>
 <script src="hazard.js"></script>
 <script src="scheduler.js"></script>

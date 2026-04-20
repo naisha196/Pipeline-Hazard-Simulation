@@ -9,11 +9,12 @@ const STAGE_CLASS = {
   "MEM":   "c-MEM",
   "WB":    "c-WB",
   "MEMWB": "c-MEMWB",
+  "MEM/WB": "c-MEMWB",
   "STALL": "c-STALL",
   "FWD":   "c-FWD",
 };
 
-function renderPipelineTable(grid, schedule, totalCycles, currentCycle, stageNames) {
+function renderPipelineTable(grid, schedule, totalCycles, currentCycle, stageNames, hazards = []) {
   const thead = document.getElementById("tableHead");
   const tbody = document.getElementById("tableBody");
 
@@ -56,6 +57,21 @@ function renderPipelineTable(grid, schedule, totalCycles, currentCycle, stageNam
       } else {
         td.className = STAGE_CLASS[val] || "";
         td.textContent = val === "MEMWB" ? "MEM/WB" : val;
+        
+        // USP: Dataflow Tooltips
+        if (val === "STALL" && hazards && hazards.length > 0) {
+            const hazard = hazards.find(h => h.consumerIdx === j && h.stalls > 0);
+            if (hazard) {
+                const typeTxt = hazard.isLoadUse ? "Load-Use Hazard" : "RAW Hazard";
+                td.title = `${typeTxt}: Waiting for ${hazard.register} from ${hazard.producerLabel}`;
+            }
+        }
+        if (val === "FWD" && hazards && hazards.length > 0) {
+            const hazard = hazards.find(h => h.consumerIdx === j && h.forwarding);
+            if (hazard) {
+                td.title = `Bypassed: Forwarded ${hazard.register} from ${hazard.producerLabel} directly to EX`;
+            }
+        }
       }
 
       if (currentCycle > 0 && c > currentCycle)  td.classList.add("dim");
