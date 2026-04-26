@@ -129,11 +129,11 @@
         <div class="seg" id="pipelineToggle">
           <button class="seg-btn active" data-value="5">
             <span class="seg-name">5-Stage</span>
-            <span class="seg-sub">IF · ID · EX · MEM · WB</span>
+            <span class="seg-sub">IF · ID · EXE · MEM · WB</span>
           </button>
           <button class="seg-btn" data-value="4">
             <span class="seg-name">4-Stage</span>
-            <span class="seg-sub">IF · ID · EX · MEM/WB</span>
+            <span class="seg-sub">IF · ID · EXE · MEM/WB</span>
           </button>
         </div>
       </div>
@@ -147,7 +147,7 @@
           </button>
           <button class="seg-btn" data-value="forward">
             <span class="seg-name">Forwarding</span>
-            <span class="seg-sub">EX→EX bypass</span>
+            <span class="seg-sub">EXE→EXE bypass</span>
           </button>
         </div>
       </div>
@@ -157,7 +157,7 @@
         <div class="pv-arrow">›</div>
         <div class="pv-stage pv-id">ID</div>
         <div class="pv-arrow">›</div>
-        <div class="pv-stage pv-ex">EX</div>
+        <div class="pv-stage pv-exe">EXE</div>
         <div class="pv-arrow">›</div>
         <div class="pv-stage pv-mem">MEM</div>
         <div class="pv-arrow">›</div>
@@ -268,11 +268,11 @@
       <div class="legend">
         <span class="leg l-if">IF</span>
         <span class="leg l-id">ID</span>
-        <span class="leg l-ex">EX</span>
+        <span class="leg l-ex">EXE</span>
         <span class="leg l-mem">MEM</span>
         <span class="leg l-wb">WB</span>
         <span class="leg l-stall">STALL</span>
-        <span class="leg l-fwd">FWD·EX</span>
+        <span class="leg l-fwd">FWD·EXE</span>
         <span class="leg l-empty">empty</span>
       </div>
 
@@ -310,7 +310,7 @@
           <rect x="86" y="28" width="28" height="16" rx="3" fill="rgba(255,170,64,0.1)" stroke="rgba(255,170,64,0.35)"
             stroke-width="1" />
           <text x="100" y="40" text-anchor="middle" fill="rgba(255,170,64,0.8)" font-size="8" font-family="monospace"
-            font-weight="600">EX</text>
+            font-weight="600">EXE</text>
           <rect x="124" y="28" width="28" height="16" rx="3" fill="rgba(204,136,255,0.1)" stroke="rgba(204,136,255,0.3)"
             stroke-width="1" />
           <text x="138" y="40" text-anchor="middle" fill="rgba(204,136,255,0.8)" font-size="8" font-family="monospace"

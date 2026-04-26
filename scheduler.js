@@ -21,8 +21,8 @@
  */
 function scheduleInstructions(instructions, numStages, forwarding) {
   const stageNames = numStages === 5
-    ? ["IF", "ID", "EX", "MEM", "WB"]
-    : ["IF", "ID", "EX", "MEMWB"];
+    ? ["IF", "ID", "EXE", "MEM", "WB"]
+    : ["IF", "ID", "EXE", "MEMWB"];
 
   const schedule    = [];
   const hazardReport = [];
@@ -123,7 +123,7 @@ function buildStages(start, stageNames) {
 /**
  * Build the 2-D cell grid used by the renderer.
  * grid[instrIdx][cycle] = stage label string | ""
- * Forwarding is shown as "FWD" on the EX cell of the consumer.
+ * Forwarding is shown as "FWD" on the EXE cell of the consumer.
  */
 function buildCellGrid(schedule, totalCycles, stageNames, forwarding) {
   return schedule.map(entry => {
@@ -132,8 +132,8 @@ function buildCellGrid(schedule, totalCycles, stageNames, forwarding) {
     // Stage labels
     for (const [stageName, cycle] of Object.entries(entry.stages)) {
       if (cycle >= 1 && cycle <= totalCycles) {
-        // Mark EX as FWD when forwarding resolved at least one dependency
-        if (stageName === "EX" && forwarding && entry.forwardedFrom.length > 0) {
+        // Mark EXE as FWD when forwarding resolved at least one dependency
+        if (stageName === "EXE" && forwarding && entry.forwardedFrom.length > 0) {
           row[cycle] = "FWD";
         } else {
           row[cycle] = stageName;

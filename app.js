@@ -245,7 +245,7 @@ function runSimulation() {
      if (h.resolvedBy === "forwarding") {
         const consumerIdx = engineResult.table.findIndex(t => t.instruction.id === h.to);
         if (consumerIdx >= 0) {
-           const exCycle = engineResult.table[consumerIdx].stageCycles["EX"];
+           const exCycle = engineResult.table[consumerIdx].stageCycles["EXE"];
            if (exCycle) grid[consumerIdx][exCycle] = "FWD";
         }
      }

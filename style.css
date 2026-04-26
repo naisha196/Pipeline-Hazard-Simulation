@@ -354,7 +354,7 @@ body {
 }
 .pv-if  { background: var(--c-if);  color: var(--c-if-t);  border-color: rgba(92,200,255,0.3); }
 .pv-id  { background: var(--c-id);  color: var(--c-id-t);  border-color: rgba(61,232,160,0.3); }
-.pv-ex  { background: var(--c-ex);  color: var(--c-ex-t);  border-color: rgba(255,172,48,0.3); }
+.pv-exe  { background: var(--c-ex);  color: var(--c-ex-t);  border-color: rgba(255,172,48,0.3); }
 .pv-mem { background: var(--c-mem); color: var(--c-mem-t); border-color: rgba(192,128,255,0.3); }
 .pv-wb  { background: var(--c-wb);  color: var(--c-wb-t);  border-color: rgba(136,136,255,0.3); }
 .pv-arrow { color: var(--t3); font-size: 14px; font-family: var(--f-mono); }

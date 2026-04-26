@@ -5,7 +5,7 @@
 const STAGE_CLASS = {
   "IF":    "c-IF",
   "ID":    "c-ID",
-  "EX":    "c-EX",
+  "EXE":    "c-EX",
   "MEM":   "c-MEM",
   "WB":    "c-WB",
   "MEMWB": "c-MEMWB",
@@ -69,7 +69,7 @@ function renderPipelineTable(grid, schedule, totalCycles, currentCycle, stageNam
         if (val === "FWD" && hazards && hazards.length > 0) {
             const hazard = hazards.find(h => h.consumerIdx === j && h.forwarding);
             if (hazard) {
-                td.title = `Bypassed: Forwarded ${hazard.register} from ${hazard.producerLabel} directly to EX`;
+                td.title = `Bypassed: Forwarded ${hazard.register} from ${hazard.producerLabel} directly to EXE`;
             }
         }
       }
@@ -128,7 +128,7 @@ function renderHazards(hazardReport, instructions, forwarding) {
     const typeTxt = h.isLoadUse ? "LOAD-USE RAW HAZARD" : "RAW DATA HAZARD";
     const regHtml = `<strong>${h.register}</strong>`;
     const desc    = isFwd
-      ? `${h.consumerLabel} reads ${regHtml} written by ${h.producerLabel}. Resolved via <strong>EX→EX forwarding</strong> — no stall inserted.`
+      ? `${h.consumerLabel} reads ${regHtml} written by ${h.producerLabel}. Resolved via <strong>EXE→EXE forwarding</strong> — no stall inserted.`
       : `${h.consumerLabel} reads ${regHtml} but ${h.producerLabel} hasn't written it yet. <strong>${h.stalls} stall cycle${h.stalls !== 1 ? "s" : ""}</strong> inserted to wait.`;
 
     const pill = isFwd

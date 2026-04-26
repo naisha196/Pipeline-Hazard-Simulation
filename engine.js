@@ -46,41 +46,18 @@ function parseAll(instructionsRaw) {
 // STEP 2 — Define Pipeline Structure
 function getPipelineStages(type) {
   if (type === "4-stage") {
-    return ["IF", "ID", "EX", "MEM/WB"];
+    return ["IF", "ID", "EXE", "MEM/WB"];
   }
   // Default to 5-stage
-  return ["IF", "ID", "EX", "MEM", "WB"];
+  return ["IF", "ID", "EXE", "MEM", "WB"];
 }
 
 // STEP 4 — RAW Hazard Detection
 function hasRAW(prev, curr) {
   if (!prev.dest) return false;
-  return prev.dest === curr.src1 || prev.dest === curr.src2;
-}
-
-// STEP 5 — Stall Insertion Logic
-function computeDelay(prevStages, currTentativeStages, forwarding, isLoadUse, numStages) {
-  if (!forwarding) {
-    // No forwarding: Data available at WB. Consumer needs it at ID.
-    // We want consumer's ID to overlap with producer's WB (write first half, read second half)
-    const producerWB = numStages === 5 ? prevStages.WB : prevStages["MEM/WB"];
-    const consumerID = currTentativeStages.ID;
-    return Math.max(0, producerWB - consumerID);
-  } else {
-    // With forwarding: Data available at EX or MEM.
-    if (isLoadUse) {
-      // Producer is LW. Data available after MEM. Consumer needs at EX.
-      const producerMEM = prevStages.MEM !== undefined ? prevStages.MEM : prevStages["MEM/WB"];
-      const consumerEX = currTentativeStages.EX;
-      return Math.max(0, producerMEM - consumerEX);
-    } else {
-      // ALU forwarding. Data available after EX. Consumer needs at EX.
-      const producerEX = prevStages.EX;
-      const consumerEX = currTentativeStages.EX;
-      // Normal ALU-ALU is 0 stalls (producerEX is cycle 3, consumerEX is cycle 4 -> 3 - 4 = -1)
-      return Math.max(0, producerEX - consumerEX);
-    }
-  }
+  const dest = prev.dest.toUpperCase();
+  return (curr.src1 && curr.src1.toUpperCase() === dest) || 
+         (curr.src2 && curr.src2.toUpperCase() === dest);
 }
 
 // FINAL ENGINE FLOW
@@ -92,101 +69,150 @@ function simulate(input) {
   const table = [];
   const hazards = [];
 
-  let nextIF = 1;
-
   for (let i = 0; i < parsed.length; i++) {
     const curr = parsed[i];
+    let stageCycles = {};
 
-    // STEP 3 — Basic Pipeline Scheduler (Tentative)
-    const tentIF = nextIF;
-    const tentStages = {};
-    stages.forEach((stg, idx) => { tentStages[stg] = tentIF + idx; });
+    // 1. IDEAL SCHEDULE (No hazards, perfectly pipelined)
+    let ideal_IF = (i === 0) ? 1 : table[i-1].stageCycles["IF"] + 1;
+    stageCycles[stages[0]] = ideal_IF;
+    for (let idx = 1; idx < numStages; idx++) {
+      stageCycles[stages[idx]] = stageCycles[stages[idx - 1]] + 1;
+    }
 
-    let maxDelay = 0;
-    let resolvedBy = "none";
+    // 2. STRUCTURAL CONSTRAINTS (In-order pipeline)
+    if (i > 0) {
+      const prevCycles = table[i-1].stageCycles;
+      
+      // Instruction cannot enter a stage until previous instruction enters the NEXT stage.
+      // This means Stage_j(idx) >= PrevStage(idx+1)
+      stageCycles[stages[0]] = Math.max(stageCycles[stages[0]], prevCycles[stages[1]]);
+      for (let idx = 1; idx < numStages; idx++) {
+        const stg = stages[idx];
+        // Cascade structural delay
+        stageCycles[stg] = Math.max(stageCycles[stg], stageCycles[stages[idx - 1]] + 1);
+        // Structural constraint vs previous instruction
+        if (idx < numStages - 1) {
+          stageCycles[stg] = Math.max(stageCycles[stg], prevCycles[stages[idx + 1]]);
+        }
+      }
+    }
+
     let hazardType = null;
     let hazardFrom = null;
     let hazardReg = null;
 
-    // Detect hazards with previous instructions
+    // 3. DATA HAZARDS
     for (let j = 0; j < i; j++) {
       const prev = parsed[j];
-      const prevTableEntry = table[j];
+      const prevEntry = table[j];
 
       if (hasRAW(prev, curr)) {
-        // Check for shadowing (a later instruction overwrote the same register)
         let shadowed = false;
         for (let k = j + 1; k < i; k++) {
           if (parsed[k].dest === prev.dest) { shadowed = true; break; }
         }
 
         if (!shadowed) {
-          const isLoadUse = prev.op === "LW";
-          const delay = computeDelay(prevTableEntry.stageCycles, tentStages, input.forwarding, isLoadUse, numStages);
-
-          if (delay >= maxDelay) {
-            maxDelay = delay;
-            hazardType = "RAW";
-            hazardFrom = prev.id;
-            hazardReg = prev.dest;
-            if (input.forwarding && delay === 0) {
-              resolvedBy = "forwarding";
+          if (!input.forwarding) {
+            // No Forwarding: Instruction must wait in IF until data is written to registers.
+            // Stall AFTER IF (Case A).
+            const avail = numStages === 5 ? prevEntry.stageCycles["WB"] : prevEntry.stageCycles["MEM/WB"];
+            const requiredID = avail + 1;
+            
+            if (requiredID > stageCycles["ID"]) {
+              stageCycles["ID"] = requiredID;
+              if (!hazardType) { hazardType = "RAW"; hazardFrom = prev.id; hazardReg = prev.dest; }
+            }
+          } else {
+            // Forwarding: Instruction must wait in IF until data is available in EXE/MEM stages.
+            // Stall AFTER IF (Case A).
+            let avail;
+            if (prev.op === "LW") {
+              avail = numStages === 5 ? prevEntry.stageCycles["MEM"] : prevEntry.stageCycles["MEM/WB"];
             } else {
-              resolvedBy = "stall";
+              avail = prevEntry.stageCycles["EXE"];
+            }
+            const requiredID = avail;
+            
+            if (requiredID > stageCycles["ID"]) {
+              stageCycles["ID"] = requiredID;
+              if (!hazardType) { hazardType = "RAW"; hazardFrom = prev.id; hazardReg = prev.dest; }
             }
           }
         }
       }
     }
 
-    if (maxDelay > 0) {
+    // 4. CASCADE DATA HAZARD DELAYS DOWN THE PIPELINE
+    for (let idx = 1; idx < numStages; idx++) {
+      const stg = stages[idx];
+      stageCycles[stg] = Math.max(stageCycles[stg], stageCycles[stages[idx - 1]] + 1);
+    }
+
+    // 5. CALCULATE TOTAL STALLS
+    let stallCount = 0;
+    for (let idx = 1; idx < numStages; idx++) {
+      stallCount += (stageCycles[stages[idx]] - stageCycles[stages[idx - 1]] - 1);
+    }
+
+    if (stallCount > 0 && hazardFrom !== null) {
       hazards.push({
         type: hazardType,
         from: hazardFrom,
         to: curr.id,
         register: hazardReg,
         resolvedBy: "stall",
-        delay: maxDelay
+        delay: stallCount
       });
-    } else if (resolvedBy === "forwarding") {
-      hazards.push({
-        type: hazardType,
-        from: hazardFrom,
-        to: curr.id,
-        register: hazardReg,
-        resolvedBy: "forwarding",
-        delay: 0
-      });
+    } else if (input.forwarding) {
+      for (let j = 0; j < i; j++) {
+        const prev = parsed[j];
+        if (hasRAW(prev, curr)) {
+          let shadowed = false;
+          for (let k = j + 1; k < i; k++) {
+            if (parsed[k].dest === prev.dest) { shadowed = true; break; }
+          }
+          if (!shadowed) {
+            hazards.push({
+              type: "RAW",
+              from: prev.id,
+              to: curr.id,
+              register: prev.dest,
+              resolvedBy: "forwarding",
+              delay: 0
+            });
+            break;
+          }
+        }
+      }
     }
 
-    // Apply delay
-    const actualIF = tentIF + maxDelay;
-    const actualStages = {};
-    stages.forEach((stg, idx) => { actualStages[stg] = actualIF + idx; });
-
-    // STEP 6 — Build Final Table Row
-    // Find the total cycles so far to size the array
-    const lastStageCycle = actualStages[stages[stages.length - 1]];
+    // 6. BUILD VISUAL TABLE WITH STALLS
+    const lastStageCycle = stageCycles[stages[numStages - 1]];
     const row = new Array(lastStageCycle + 1).fill("");
 
-    // Fill tentative ID up to actual ID with STALL
-    for (let c = tentIF + 1; c < actualIF + 1; c++) {
-      row[c] = "STALL";
+    // Place actual stages
+    for (let idx = 0; idx < numStages; idx++) {
+      const stg = stages[idx];
+      row[stageCycles[stg]] = stg;
     }
 
-    // Fill actual stages
-    stages.forEach(stg => {
-      row[actualStages[stg]] = stg;
-    });
+    // Fill gaps with STALL
+    for (let idx = 1; idx < numStages; idx++) {
+      const prevStgCycle = stageCycles[stages[idx - 1]];
+      const currStgCycle = stageCycles[stages[idx]];
+      for (let c = prevStgCycle + 1; c < currStgCycle; c++) {
+        row[c] = "STALL";
+      }
+    }
 
     table.push({
       instruction: curr,
       stages: row,
-      stageCycles: actualStages,
-      stallCount: maxDelay
+      stageCycles: stageCycles,
+      stallCount: stallCount
     });
-
-    nextIF = actualIF + 1;
   }
 
   return {
