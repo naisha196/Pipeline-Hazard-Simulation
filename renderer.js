@@ -1,24 +1,23 @@
-// ============================================================
-// renderer.js — Table & Hazard Renderer
-// ============================================================
+
+// Table & Hazard Renderer
 
 const STAGE_CLASS = {
-  "IF":    "c-IF",
-  "ID":    "c-ID",
-  "EXE":    "c-EX",
-  "MEM":   "c-MEM",
-  "WB":    "c-WB",
+  "IF": "c-IF",
+  "ID": "c-ID",
+  "EXE": "c-EX",
+  "MEM": "c-MEM",
+  "WB": "c-WB",
   "MEMWB": "c-MEMWB",
   "MEM/WB": "c-MEMWB",
   "STALL": "c-STALL",
-  "FWD":   "c-FWD",
+  "FWD": "c-FWD",
 };
 
 function renderPipelineTable(grid, schedule, totalCycles, currentCycle, stageNames, hazards = []) {
   const thead = document.getElementById("tableHead");
   const tbody = document.getElementById("tableBody");
 
-  // ── HEADER ──
+  // Header
   thead.innerHTML = "";
   const hr = document.createElement("tr");
 
@@ -35,7 +34,7 @@ function renderPipelineTable(grid, schedule, totalCycles, currentCycle, stageNam
   }
   thead.appendChild(hr);
 
-  // ── BODY ──
+  // Body
   tbody.innerHTML = "";
 
   schedule.forEach((entry, j) => {
@@ -49,7 +48,7 @@ function renderPipelineTable(grid, schedule, totalCycles, currentCycle, stageNam
 
     // Stage cells
     for (let c = 1; c <= totalCycles; c++) {
-      const td  = document.createElement("td");
+      const td = document.createElement("td");
       const val = grid[j][c] || "";
 
       if (!val) {
@@ -57,24 +56,24 @@ function renderPipelineTable(grid, schedule, totalCycles, currentCycle, stageNam
       } else {
         td.className = STAGE_CLASS[val] || "";
         td.textContent = val === "MEMWB" ? "MEM/WB" : val;
-        
+
         // USP: Dataflow Tooltips
         if (val === "STALL" && hazards && hazards.length > 0) {
-            const hazard = hazards.find(h => h.consumerIdx === j && h.stalls > 0);
-            if (hazard) {
-                const typeTxt = hazard.isLoadUse ? "Load-Use Hazard" : "RAW Hazard";
-                td.title = `${typeTxt}: Waiting for ${hazard.register} from ${hazard.producerLabel}`;
-            }
+          const hazard = hazards.find(h => h.consumerIdx === j && h.stalls > 0);
+          if (hazard) {
+            const typeTxt = hazard.isLoadUse ? "Load-Use Hazard" : "RAW Hazard";
+            td.title = `${typeTxt}: Waiting for ${hazard.register} from ${hazard.producerLabel}`;
+          }
         }
         if (val === "FWD" && hazards && hazards.length > 0) {
-            const hazard = hazards.find(h => h.consumerIdx === j && h.forwarding);
-            if (hazard) {
-                td.title = `Bypassed: Forwarded ${hazard.register} from ${hazard.producerLabel} directly to EXE`;
-            }
+          const hazard = hazards.find(h => h.consumerIdx === j && h.forwarding);
+          if (hazard) {
+            td.title = `Bypassed: Forwarded ${hazard.register} from ${hazard.producerLabel} directly to EXE`;
+          }
         }
       }
 
-      if (currentCycle > 0 && c > currentCycle)  td.classList.add("dim");
+      if (currentCycle > 0 && c > currentCycle) td.classList.add("dim");
       if (currentCycle > 0 && c === currentCycle) td.classList.add("col-hl");
 
       tr.appendChild(td);
@@ -86,15 +85,15 @@ function renderPipelineTable(grid, schedule, totalCycles, currentCycle, stageNam
 
 function renderHazards(hazardReport, instructions, forwarding) {
   const section = document.getElementById("section-hazards");
-  const list    = document.getElementById("hazardList");
-  const badge   = document.getElementById("hazardCount");
+  const list = document.getElementById("hazardList");
+  const badge = document.getElementById("hazardCount");
 
   list.innerHTML = "";
   section.classList.remove("hidden");
 
   // Collect unique meaningful hazards
-  const seen     = new Set();
-  const hazards  = [];
+  const seen = new Set();
+  const hazards = [];
 
   hazardReport.forEach(instHazards => {
     instHazards.forEach(h => {
@@ -122,12 +121,12 @@ function renderHazards(hazardReport, instructions, forwarding) {
 
   hazards.forEach(h => {
     const isFwd = forwarding && h.stalls === 0 && h.forwarding;
-    const item  = document.createElement("div");
+    const item = document.createElement("div");
     item.className = `h-item${isFwd ? " h-fwd" : ""}`;
 
     const typeTxt = h.isLoadUse ? "LOAD-USE RAW HAZARD" : "RAW DATA HAZARD";
     const regHtml = `<strong>${h.register}</strong>`;
-    const desc    = isFwd
+    const desc = isFwd
       ? `${h.consumerLabel} reads ${regHtml} written by ${h.producerLabel}. Resolved via <strong>EXE→EXE forwarding</strong> — no stall inserted.`
       : `${h.consumerLabel} reads ${regHtml} but ${h.producerLabel} hasn't written it yet. <strong>${h.stalls} stall cycle${h.stalls !== 1 ? "s" : ""}</strong> inserted to wait.`;
 
@@ -149,7 +148,7 @@ function renderHazards(hazardReport, instructions, forwarding) {
 
 function updateCycleDisplay(current, total) {
   document.getElementById("cycleCounter").textContent = current > 0 ? current : "—";
-  document.getElementById("totalCycles").textContent  = total  > 0 ? total  : "—";
+  document.getElementById("totalCycles").textContent = total > 0 ? total : "—";
   const bar = document.getElementById("cycleBar");
   if (bar && total > 0 && current > 0) {
     bar.style.width = `${Math.min(100, (current / total) * 100)}%`;

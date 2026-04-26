@@ -1,11 +1,10 @@
-// ============================================================
-// hazard.js — RAW Hazard Detection & Stall Calculation
-// ============================================================
+
+// RAW Hazard Detection & Stall Calculation
 
 /**
  * Calculate stalls needed between a producer and consumer instruction.
  *
- * Assumptions (standard textbook model):
+ * Assumptions:
  *  - Without forwarding: result usable only AFTER WB completes.
  *    Consumer needs the value at its ID stage (register file read).
  *    => stalls = producerWB - consumerID (clamped to 0)
@@ -28,18 +27,18 @@ function calculateStalls(pStages, cStages, forwarding, isLoadUse, numStages) {
   if (forwarding) {
     if (isLoadUse) {
       // LW result ready after MEM; consumer needs it at EX
-      const ready  = pStages.MEM  !== undefined ? pStages.MEM  : pStages.MEMWB;
+      const ready = pStages.MEM !== undefined ? pStages.MEM : pStages.MEMWB;
       const needed = cStages.EX;
       return Math.max(0, ready - needed);
     } else {
       // ALU forwarding: result at end of EX → forwarded to next EX input
-      const ready  = pStages.EX;
+      const ready = pStages.EX;
       const needed = cStages.EX;
       return Math.max(0, ready - needed);
     }
   } else {
     // No forwarding: result available only after WB writes to register file
-    const ready  = numStages === 5 ? pStages.WB : pStages.MEMWB;
+    const ready = numStages === 5 ? pStages.WB : pStages.MEMWB;
     // Consumer reads the register at the END of its ID stage (start of EX)
     const needed = cStages.EX;
     return Math.max(0, ready - needed);

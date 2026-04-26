@@ -11,12 +11,6 @@
     rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* ── New grid layout: 3 columns, 3 rows ──
-     Col:  1      2      3
-     R1: [ 01 ] [ 02 ] [ 03 ]
-     R2: [ 01 ] [   04      ]
-     R3: [ 01 ] [   04      ]
-  ── */
     .app-shell {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
@@ -88,7 +82,7 @@
   <canvas id="starfield"></canvas>
   <div class="grid-overlay"></div>
 
-  <!-- ══════════════ HEADER ══════════════ -->
+  <!-- HEADER -->
   <header class="site-header">
     <div class="header-glow"></div>
     <div class="header-inner">
@@ -112,10 +106,10 @@
     </div>
   </header>
 
-  <!-- ══════════════ APP SHELL ══════════════ -->
+  <!-- APP SHELL -->
   <main class="app-shell">
 
-    <!-- 02 · PIPELINE CONFIG -->
+    <!-- PIPELINE CONFIG -->
     <section class="card" id="section-config">
       <div class="card-head">
         <div class="card-head-l">
@@ -127,11 +121,11 @@
       <div class="cfg-group">
         <div class="field-lbl">Pipeline Type</div>
         <div class="seg" id="pipelineToggle">
-          <button class="seg-btn active" data-value="5">
+          <button type="button" class="seg-btn active" data-value="5">
             <span class="seg-name">5-Stage</span>
             <span class="seg-sub">IF · ID · EXE · MEM · WB</span>
           </button>
-          <button class="seg-btn" data-value="4">
+          <button type="button" class="seg-btn" data-value="4">
             <span class="seg-name">4-Stage</span>
             <span class="seg-sub">IF · ID · EXE · MEM/WB</span>
           </button>
@@ -141,11 +135,11 @@
       <div class="cfg-group" style="margin-top:16px">
         <div class="field-lbl">Hazard Resolution</div>
         <div class="seg" id="forwardingToggle">
-          <button class="seg-btn active" data-value="stall">
+          <button type="button" class="seg-btn active" data-value="stall">
             <span class="seg-name">Stall Only</span>
             <span class="seg-sub">Insert bubbles</span>
           </button>
-          <button class="seg-btn" data-value="forward">
+          <button type="button" class="seg-btn" data-value="forward">
             <span class="seg-name">Forwarding</span>
             <span class="seg-sub">EXE→EXE bypass</span>
           </button>
@@ -175,9 +169,9 @@
       </div>
 
       <div class="ctrl-row">
-        <button class="btn-run" id="btnRun"> ▶ RUN </button>
-        <button class="btn-step" id="btnStep"> ⏭ STEP </button>
-        <button class="btn-reset" id="btnReset">↺ RESET</button>
+        <button type="button" class="btn-run" id="btnRun"> ▶ RUN </button>
+        <button type="button" class="btn-step" id="btnStep"> ⏭ STEP </button>
+        <button type="button" class="btn-reset" id="btnReset">↺ RESET</button>
       </div>
 
       <div class="meters">
@@ -215,9 +209,9 @@
       <div class="count-bar">
         <span class="field-lbl">Instructions</span>
         <div class="stepper">
-          <button class="step-btn" id="btnDecCount">−</button>
+          <button type="button" class="step-btn" id="btnDecCount">−</button>
           <span class="step-val" id="instrCount">3</span>
-          <button class="step-btn" id="btnIncCount">+</button>
+          <button type="button" class="step-btn" id="btnIncCount">+</button>
         </div>
       </div>
       <div id="instrFields" class="instr-fields"></div>
@@ -234,13 +228,17 @@
         style="margin-top: 16px; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px;">
         <div class="syntax-title" style="margin-bottom: 8px;">Load Required Test Cases</div>
         <div class="tc-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-          <button class="btn-ghost" id="btnTc1" style="width: 100%; justify-content: center; font-size: 11px;">1.
+          <button type="button" class="btn-ghost" id="btnTc1"
+            style="width: 100%; justify-content: center; font-size: 11px;">1.
             Independent</button>
-          <button class="btn-ghost" id="btnTc2" style="width: 100%; justify-content: center; font-size: 11px;">2.
+          <button type="button" class="btn-ghost" id="btnTc2"
+            style="width: 100%; justify-content: center; font-size: 11px;">2.
             Arithmetic RAW</button>
-          <button class="btn-ghost" id="btnTc3" style="width: 100%; justify-content: center; font-size: 11px;">3.
+          <button type="button" class="btn-ghost" id="btnTc3"
+            style="width: 100%; justify-content: center; font-size: 11px;">3.
             Load-Use Hazard</button>
-          <button class="btn-ghost" id="btnTc4" style="width: 100%; justify-content: center; font-size: 11px;">4.
+          <button type="button" class="btn-ghost" id="btnTc4"
+            style="width: 100%; justify-content: center; font-size: 11px;">4.
             Forwarding Demo</button>
         </div>
       </div>

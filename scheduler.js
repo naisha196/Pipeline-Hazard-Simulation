@@ -1,6 +1,4 @@
-// ============================================================
 // scheduler.js — Pipeline Scheduler (in-order, single-issue)
-// ============================================================
 
 /**
  * Schedules all instructions through the pipeline, inserting
@@ -24,7 +22,7 @@ function scheduleInstructions(instructions, numStages, forwarding) {
     ? ["IF", "ID", "EXE", "MEM", "WB"]
     : ["IF", "ID", "EXE", "MEMWB"];
 
-  const schedule    = [];
+  const schedule = [];
   const hazardReport = [];
 
   // nextIF: the earliest cycle the next instruction can enter IF
@@ -62,22 +60,22 @@ function scheduleInstructions(instructions, numStages, forwarding) {
       );
 
       instrHazards.push({
-        producerIdx:   i,
-        consumerIdx:   j,
+        producerIdx: i,
+        consumerIdx: j,
         producerLabel: instructions[i].id,
         consumerLabel: instr.id,
-        register:      instructions[i].dest,
-        isLoadUse:     instructions[i].op === "LW",
-        stalls:        stalls,
-        forwarding:    forwarding && stalls === 0,
-        resolved:      forwarding && stalls === 0 ? "forwarding" : "stall",
+        register: instructions[i].dest,
+        isLoadUse: instructions[i].op === "LW",
+        stalls: stalls,
+        forwarding: forwarding && stalls === 0,
+        resolved: forwarding && stalls === 0 ? "forwarding" : "stall",
       });
 
       if (stalls > maxStalls) maxStalls = stalls;
     }
 
     // Actual IF is pushed back by the stall count
-    const actualIF     = tentIF + maxStalls;
+    const actualIF = tentIF + maxStalls;
     const actualStages = buildStages(actualIF, stageNames);
 
     // Stall cells: shown in this instruction's row, between tentIF+1 and actualIF (inclusive)
@@ -92,11 +90,11 @@ function scheduleInstructions(instructions, numStages, forwarding) {
 
     schedule.push({
       instr,
-      stages:       actualStages,
+      stages: actualStages,
       stallCycles,
-      stallCount:   maxStalls,
+      stallCount: maxStalls,
       forwardedFrom,
-      hazards:      instrHazards,
+      hazards: instrHazards,
     });
 
     hazardReport.push(instrHazards);
@@ -106,7 +104,7 @@ function scheduleInstructions(instructions, numStages, forwarding) {
   }
 
   // Total cycles = last stage of last instruction
-  const last      = schedule[schedule.length - 1];
+  const last = schedule[schedule.length - 1];
   const lastStage = stageNames[stageNames.length - 1];
   const totalCycles = last ? last.stages[lastStage] : 0;
 

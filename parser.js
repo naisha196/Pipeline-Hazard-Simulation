@@ -1,14 +1,14 @@
-// ============================================================
-// parser.js — Instruction Parser
-// Parses user input fields into structured instruction objects
-// ============================================================
 
-const SUPPORTED_OPS = ["ADD","SUB","LW","SW","MUL","AND","OR","XOR","SLL","SRL"];
+// Instruction Parser
+// Parses user input fields into structured instruction objects
+
+
+const SUPPORTED_OPS = ["ADD", "SUB", "LW", "SW"];
 
 function buildInstructionFromFields(index, op, f1, f2, f3) {
   const id = `I${index + 1}`;
   op = op.toUpperCase().trim();
-  const norm = s => s.trim().toUpperCase().replace(/\s+/g,"");
+  const norm = s => s.trim().toUpperCase().replace(/\s+/g, "");
 
   if (op === "LW") {
     if (!f1) return { error: "LW requires destination register (e.g. R1)" };
@@ -18,7 +18,7 @@ function buildInstructionFromFields(index, op, f1, f2, f3) {
       const m = norm(f2).match(/^-?\d*\(([A-Z][A-Z0-9]*)\)$/);
       src1 = m ? m[1] : norm(f2);
     }
-    return { id, raw:`LW ${dest}, ${f2||"0(R0)"}`, op:"LW", dest, src1, src2:null };
+    return { id, raw: `LW ${dest}, ${f2 || "0(R0)"}`, op: "LW", dest, src1, src2: null };
   }
 
   if (op === "SW") {
@@ -29,7 +29,7 @@ function buildInstructionFromFields(index, op, f1, f2, f3) {
       const m = norm(f2).match(/^-?\d*\(([A-Z][A-Z0-9]*)\)$/);
       src2 = m ? m[1] : norm(f2);
     }
-    return { id, raw:`SW ${src1}, ${f2||"0(R0)"}`, op:"SW", dest:null, src1, src2 };
+    return { id, raw: `SW ${src1}, ${f2 || "0(R0)"}`, op: "SW", dest: null, src1, src2 };
   }
 
   // R-type: dest, src1, src2
@@ -48,15 +48,15 @@ function collectInstructions() {
   const rows = document.querySelectorAll(".instr-row");
   const instructions = [], errors = [];
   rows.forEach((row, i) => {
-    const op  = row.querySelector(".instr-select").value;
+    const op = row.querySelector(".instr-select").value;
     const ins = row.querySelectorAll(".instr-input");
     ins.forEach(inp => inp.classList.remove("error"));
     const f1 = ins[0]?.value.trim() || "";
     const f2 = ins[1]?.value.trim() || "";
     const f3 = ins[2]?.value.trim() || "";
-    const r  = buildInstructionFromFields(i, op, f1, f2, f3);
+    const r = buildInstructionFromFields(i, op, f1, f2, f3);
     if (r.error) {
-      errors.push(`I${i+1}: ${r.error}`);
+      errors.push(`I${i + 1}: ${r.error}`);
       ins[0]?.classList.add("error");
     } else {
       instructions.push(r);

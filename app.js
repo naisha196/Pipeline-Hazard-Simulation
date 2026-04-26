@@ -1,146 +1,165 @@
-// ============================================================
-// app.js — Application Controller
-// ============================================================
 
-// ── STATE ──
+// Application Controller
+
+// State
 const state = {
-  instrCount:   3,
-  numStages:    5,
-  forwarding:   false,
-  schedule:     null,
-  grid:         null,
-  stageNames:   null,
-  totalCycles:  0,
+  instrCount: 3,
+  numStages: 5,
+  forwarding: false,
+  schedule: null,
+  grid: null,
+  stageNames: null,
+  totalCycles: 0,
   currentCycle: 0,
-  running:      false,
-  runTimer:     null,
-  hazards:      null,
+  running: false,
+  runTimer: null,
+  hazards: null,
 };
 
-// ── DOM ──
-const $instrFields  = document.getElementById("instrFields");
-const $instrCount   = document.getElementById("instrCount");
-const $btnDecCount  = document.getElementById("btnDecCount");
-const $btnIncCount  = document.getElementById("btnIncCount");
+// DOM Elements
+const $instrFields = document.getElementById("instrFields");
+const $instrCount = document.getElementById("instrCount");
+const $btnDecCount = document.getElementById("btnDecCount");
+const $btnIncCount = document.getElementById("btnIncCount");
 
-const $btnRun       = document.getElementById("btnRun");
-const $btnStep      = document.getElementById("btnStep");
-const $btnReset     = document.getElementById("btnReset");
-const $simStatus    = document.getElementById("simStatus");
-const $sectionViz   = document.getElementById("section-viz");
-const $sectionHaz   = document.getElementById("section-hazards");
-const $emptyState   = document.getElementById("emptyState");
+const $btnRun = document.getElementById("btnRun");
+const $btnStep = document.getElementById("btnStep");
+const $btnReset = document.getElementById("btnReset");
+const $simStatus = document.getElementById("simStatus");
+const $sectionViz = document.getElementById("section-viz");
+const $sectionHaz = document.getElementById("section-hazards");
+const $emptyState = document.getElementById("emptyState");
 
-// ── OPCODE FIELD CONFIG ──
+// Opcode Field Config
 const FIELD_CFG = {
   ADD: ["Rd", "Rs1", "Rs2"],
   SUB: ["Rd", "Rs1", "Rs2"],
-  MUL: ["Rd", "Rs1", "Rs2"],
-  AND: ["Rd", "Rs1", "Rs2"],
-  OR:  ["Rd", "Rs1", "Rs2"],
-  XOR: ["Rd", "Rs1", "Rs2"],
-  SLL: ["Rd", "Rs1", "Rs2"],
-  SRL: ["Rd", "Rs1", "Rs2"],
-  LW:  ["Rd", "offset(Rs)"],
-  SW:  ["Rs", "offset(Rb)"],
+  LW: ["Rd", "offset(Rs)"],
+  SW: ["Rs", "offset(Rb)"],
 };
 const ALL_OPS = Object.keys(FIELD_CFG);
 
 const TEST_CASES = {
   1: [
-    { op:"ADD", f:["R1","R2","R3"] },
-    { op:"SUB", f:["R4","R5","R6"] },
-    { op:"LW",  f:["R7","0(R8)"]  },
-    { op:"SW",  f:["R9","4(R10)"] }
+    { op: "ADD", f: ["R1", "R2", "R3"] },
+    { op: "SUB", f: ["R4", "R5", "R6"] },
+    { op: "LW", f: ["R7", "0(R8)"] },
+    { op: "SW", f: ["R9", "4(R10)"] }
   ],
   2: [
-    { op:"ADD", f:["R1","R2","R3"] },
-    { op:"SUB", f:["R4","R1","R5"] },
-    { op:"AND", f:["R6","R1","R7"] }
+    { op: "ADD", f: ["R1", "R2", "R3"] },
+    { op: "SUB", f: ["R4", "R1", "R5"] },
+    { op: "ADD", f: ["R6", "R1", "R7"] }
   ],
   3: [
-    { op:"LW",  f:["R1","0(R2)"] },
-    { op:"ADD", f:["R3","R1","R4"] },
-    { op:"SW",  f:["R3","4(R5)"] }
+    { op: "LW", f: ["R1", "0(R2)"] },
+    { op: "ADD", f: ["R3", "R1", "R4"] },
+    { op: "SW", f: ["R3", "4(R5)"] }
   ],
   4: [
-    { op:"ADD", f:["R1","R2","R3"] },
-    { op:"SUB", f:["R4","R1","R5"] },
-    { op:"LW",  f:["R6","8(R1)"] },
-    { op:"ADD", f:["R7","R6","R8"] }
+    { op: "ADD", f: ["R1", "R2", "R3"] },
+    { op: "SUB", f: ["R4", "R1", "R5"] },
+    { op: "LW", f: ["R6", "8(R1)"] },
+    { op: "ADD", f: ["R7", "R6", "R8"] }
   ]
 };
-let currentDemo = TEST_CASES[2];
+// Primary working set of instructions
+let currentInstructions = JSON.parse(JSON.stringify(TEST_CASES[2]));
+state.instrCount = currentInstructions.length;
 
-// ── GENERATE INSTRUCTION ROWS ──
+// Sync State from UI
+function syncStateFromUI() {
+  const rows = document.querySelectorAll(".instr-row");
+  const updated = [];
+  rows.forEach(row => {
+    const op = row.querySelector(".instr-select").value;
+    const fields = Array.from(row.querySelectorAll(".instr-input")).map(inp => inp.value);
+    updated.push({ op, f: fields });
+  });
+  currentInstructions = updated;
+  state.instrCount = updated.length;
+  $instrCount.textContent = state.instrCount;
+}
+
+// Create individual instruction row
+function createInstructionRow(i, data) {
+  const row = document.createElement("div");
+  row.className = "instr-row";
+  row.dataset.index = i;
+
+  const instrData = data || { op: "ADD", f: ["", "", ""] };
+
+  // Label
+  const lbl = document.createElement("span");
+  lbl.className = "instr-label";
+  lbl.textContent = `I${i + 1}`;
+  row.appendChild(lbl);
+
+  // Opcode select
+  const sel = document.createElement("select");
+  sel.className = "instr-select";
+  ALL_OPS.forEach(op => {
+    const o = document.createElement("option");
+    o.value = op; o.textContent = op;
+    sel.appendChild(o);
+  });
+  sel.value = instrData.op;
+  row.appendChild(sel);
+
+  // Input fields
+  appendInputFields(row, sel.value, sel);
+
+  // Pre-fill input values
+  const inputs = row.querySelectorAll(".instr-input");
+  instrData.f.forEach((val, idx) => {
+    if (inputs[idx]) inputs[idx].value = val;
+  });
+
+  // Remove button
+  const rm = document.createElement("button");
+  rm.type = "button";
+  rm.className = "btn-rm"; rm.title = "Remove"; rm.textContent = "✕";
+  rm.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (state.instrCount > 1) {
+      row.remove();
+      updateInstructionIndices();
+    }
+  });
+  row.appendChild(rm);
+
+  // Opcode change → rebuild inputs
+  sel.addEventListener("change", (e) => {
+    row.querySelectorAll(".instr-input").forEach(el => el.remove());
+    appendInputFields(row, sel.value, sel, rm);
+  });
+
+  return row;
+}
+
+// Update all labels and data-index after a removal
+function updateInstructionIndices() {
+  const rows = $instrFields.querySelectorAll(".instr-row");
+  rows.forEach((row, i) => {
+    row.dataset.index = i;
+    row.querySelector(".instr-label").textContent = `I${i + 1}`;
+  });
+  state.instrCount = rows.length;
+  $instrCount.textContent = state.instrCount;
+}
+
+// Rebuild everything (for init or test cases)
 function generateFields() {
   $instrFields.innerHTML = "";
-
-  for (let i = 0; i < state.instrCount; i++) {
-    const row = document.createElement("div");
-    row.className = "instr-row";
-    row.dataset.index = i;
-
-    // Label
-    const lbl = document.createElement("span");
-    lbl.className = "instr-label";
-    lbl.textContent = `I${i + 1}`;
-    row.appendChild(lbl);
-
-    // Opcode select
-    const sel = document.createElement("select");
-    sel.className = "instr-select";
-    ALL_OPS.forEach(op => {
-      const o = document.createElement("option");
-      o.value = op; o.textContent = op;
-      sel.appendChild(o);
-    });
-    const defOp = currentDemo[i]?.op || "ADD";
-    sel.value = defOp;
-    row.appendChild(sel);
-
-    // Input fields
-    appendInputFields(row, sel.value, sel);
-
-    // Remove button
-    const rm = document.createElement("button");
-    rm.className = "btn-rm"; rm.title = "Remove"; rm.textContent = "✕";
-    rm.addEventListener("click", () => {
-      if (state.instrCount > 1) {
-        state.instrCount--;
-        $instrCount.textContent = state.instrCount;
-        generateFields();
-      }
-    });
-    row.appendChild(rm);
-
-    // Opcode change → rebuild inputs
-    sel.addEventListener("change", () => {
-      row.querySelectorAll(".instr-input").forEach(e => e.remove());
-      appendInputFields(row, sel.value, sel, rm);
-    });
-
-    $instrFields.appendChild(row);
-  }
-
-  // Pre-fill demo values
-  document.querySelectorAll(".instr-row").forEach((row, i) => {
-    const demo = currentDemo[i]; if (!demo) { 
-       row.querySelectorAll(".instr-input").forEach(inp => inp.value = "");
-       return; 
-    }
-    const sel = row.querySelector(".instr-select");
-    if (sel.value !== demo.op) {
-      sel.value = demo.op;
-      sel.dispatchEvent(new Event("change"));
-    }
-    const ins = row.querySelectorAll(".instr-input");
-    demo.f.forEach((v, fi) => { if (ins[fi]) ins[fi].value = v; });
+  currentInstructions.forEach((data, i) => {
+    $instrFields.appendChild(createInstructionRow(i, data));
   });
+  state.instrCount = currentInstructions.length;
+  $instrCount.textContent = state.instrCount;
 }
 
 function appendInputFields(row, op, sel, rmBtn) {
-  const cfg = FIELD_CFG[op] || ["Rd","Rs1","Rs2"];
+  const cfg = FIELD_CFG[op] || ["Rd", "Rs1", "Rs2"];
   const ref = rmBtn || row.querySelector(".btn-rm");
   cfg.forEach(ph => {
     const inp = document.createElement("input");
@@ -151,22 +170,34 @@ function appendInputFields(row, op, sel, rmBtn) {
   });
 }
 
-// ── COUNT CONTROLS ──
-$btnDecCount.addEventListener("click", () => {
-  if (state.instrCount > 1) { state.instrCount--; $instrCount.textContent = state.instrCount; generateFields(); }
+// Count Controls
+$btnDecCount.addEventListener("click", (e) => {
+  e.preventDefault();
+  const rows = $instrFields.querySelectorAll(".instr-row");
+  if (rows.length > 1) {
+    rows[rows.length - 1].remove();
+    updateInstructionIndices();
+  }
 });
-$btnIncCount.addEventListener("click", () => {
-  if (state.instrCount < 10) { state.instrCount++; $instrCount.textContent = state.instrCount; generateFields(); }
+$btnIncCount.addEventListener("click", (e) => {
+  e.preventDefault();
+  const rows = $instrFields.querySelectorAll(".instr-row");
+  if (rows.length < 10) {
+    const newRow = createInstructionRow(rows.length, { op: "ADD", f: ["", "", ""] });
+    $instrFields.appendChild(newRow);
+    updateInstructionIndices();
+  }
 });
-// ── TEST CASES ──
+// Test Cases
 [1, 2, 3, 4].forEach(id => {
   document.getElementById(`btnTc${id}`).addEventListener("click", (e) => {
+    e.preventDefault();
     // Visual feedback
     document.querySelectorAll(".tc-buttons .btn-ghost").forEach(b => b.classList.remove("active"));
     e.target.classList.add("active");
-    
-    currentDemo = TEST_CASES[id];
-    state.instrCount = currentDemo.length;
+
+    currentInstructions = JSON.parse(JSON.stringify(TEST_CASES[id]));
+    state.instrCount = currentInstructions.length;
     $instrCount.textContent = state.instrCount;
     generateFields();
     setStatus(`Loaded Test Case ${id}. Ready to run.`);
@@ -178,8 +209,9 @@ $btnIncCount.addEventListener("click", () => {
   });
 });
 
-// ── PIPELINE TOGGLE ──
+// Pipeline Toggle
 document.getElementById("pipelineToggle").addEventListener("click", e => {
+  e.preventDefault();
   const btn = e.target.closest(".seg-btn"); if (!btn) return;
   document.querySelectorAll("#pipelineToggle .seg-btn").forEach(b => b.classList.remove("active"));
   btn.classList.add("active");
@@ -187,8 +219,9 @@ document.getElementById("pipelineToggle").addEventListener("click", e => {
   updatePipeDiagram();
 });
 
-// ── FORWARDING TOGGLE ──
+// Forwarding Toggle
 document.getElementById("forwardingToggle").addEventListener("click", e => {
+  e.preventDefault();
   const btn = e.target.closest(".seg-btn"); if (!btn) return;
   document.querySelectorAll("#forwardingToggle .seg-btn").forEach(b => b.classList.remove("active"));
   btn.classList.add("active");
@@ -211,7 +244,7 @@ function updatePipeDiagram() {
   }
 }
 
-// ── SIMULATION CORE ──
+// Simulation Core
 function runSimulation() {
   const { instructions, errors } = collectInstructions();
   if (errors.length) { setStatus("⚠ " + errors[0], "err"); return false; }
@@ -223,45 +256,45 @@ function runSimulation() {
     forwarding: state.forwarding
   };
   const engineResult = window.simulateEngine(input);
-  
-  const totalCycles = engineResult.table.length > 0 
-    ? engineResult.table[engineResult.table.length - 1].stages.length - 1 
+
+  const totalCycles = engineResult.table.length > 0
+    ? engineResult.table[engineResult.table.length - 1].stages.length - 1
     : 0;
-    
+
   state.schedule = engineResult.table.map((t, idx) => ({ instr: instructions[idx] }));
   state.stageNames = engineResult.stages;
   state.totalCycles = totalCycles;
-  
+
   const grid = [];
   engineResult.table.forEach(t => {
-     const row = new Array(totalCycles + 1).fill("");
-     for (let i = 1; i < t.stages.length; i++) {
-        if (t.stages[i]) row[i] = t.stages[i];
-     }
-     grid.push(row);
+    const row = new Array(totalCycles + 1).fill("");
+    for (let i = 1; i < t.stages.length; i++) {
+      if (t.stages[i]) row[i] = t.stages[i];
+    }
+    grid.push(row);
   });
-  
+
   engineResult.hazards.forEach(h => {
-     if (h.resolvedBy === "forwarding") {
-        const consumerIdx = engineResult.table.findIndex(t => t.instruction.id === h.to);
-        if (consumerIdx >= 0) {
-           const exCycle = engineResult.table[consumerIdx].stageCycles["EXE"];
-           if (exCycle) grid[consumerIdx][exCycle] = "FWD";
-        }
-     }
+    if (h.resolvedBy === "forwarding") {
+      const consumerIdx = engineResult.table.findIndex(t => t.instruction.id === h.to);
+      if (consumerIdx >= 0) {
+        const exCycle = engineResult.table[consumerIdx].stageCycles["EXE"];
+        if (exCycle) grid[consumerIdx][exCycle] = "FWD";
+      }
+    }
   });
-  
+
   state.grid = grid;
-  
+
   const legacyHazards = engineResult.hazards.map(h => ({
-     producerIdx: parseInt(h.from.substring(1)) - 1,
-     consumerIdx: parseInt(h.to.substring(1)) - 1,
-     producerLabel: h.from,
-     consumerLabel: h.to,
-     register: h.register,
-     isLoadUse: engineResult.parsed.find(p => p.id === h.from).op === "LW",
-     stalls: h.delay,
-     forwarding: h.resolvedBy === "forwarding"
+    producerIdx: parseInt(h.from.substring(1)) - 1,
+    consumerIdx: parseInt(h.to.substring(1)) - 1,
+    producerLabel: h.from,
+    consumerLabel: h.to,
+    register: h.register,
+    isLoadUse: engineResult.parsed.find(p => p.id === h.from).op === "LW",
+    stalls: h.delay,
+    forwarding: h.resolvedBy === "forwarding"
   }));
   const hazardReport = [legacyHazards];
   state.hazards = legacyHazards;
@@ -284,8 +317,9 @@ function renderAtCycle(cycle) {
   updateCycleDisplay(cycle || state.totalCycles, state.totalCycles);
 }
 
-// RUN
-$btnRun.addEventListener("click", () => {
+// Run
+$btnRun.addEventListener("click", (e) => {
+  e.preventDefault();
   if (state.running) {
     clearInterval(state.runTimer);
     state.running = false;
@@ -311,8 +345,9 @@ $btnRun.addEventListener("click", () => {
   }, 550);
 });
 
-// STEP
-$btnStep.addEventListener("click", () => {
+// Step
+$btnStep.addEventListener("click", (e) => {
+  e.preventDefault();
   if (state.running) return;
   if (!state.schedule) {
     if (!runSimulation()) return;
@@ -333,10 +368,11 @@ $btnStep.addEventListener("click", () => {
   }
 });
 
-// RESET
-$btnReset.addEventListener("click", () => {
+// Reset
+$btnReset.addEventListener("click", (e) => {
+  e.preventDefault();
   clearInterval(state.runTimer);
-  Object.assign(state, { running:false, schedule:null, grid:null, currentCycle:0, totalCycles:0, hazards:null });
+  Object.assign(state, { running: false, schedule: null, grid: null, currentCycle: 0, totalCycles: 0, hazards: null });
   $btnRun.textContent = "▶ RUN";
   $sectionViz.classList.add("hidden");
   $sectionHaz.classList.add("hidden");
@@ -353,14 +389,14 @@ function setStatus(msg, type) {
   $simStatus.style.color = type === "err" ? "var(--red)" : "var(--green)";
 }
 
-// ── STARFIELD ──
+// Starfield
 (function () {
   const cv = document.getElementById("starfield");
   const cx = cv.getContext("2d");
   let stars = [];
 
   const resize = () => { cv.width = innerWidth; cv.height = innerHeight; };
-  const init   = () => {
+  const init = () => {
     stars = Array.from({ length: 220 }, () => ({
       x: Math.random() * cv.width,
       y: Math.random() * cv.height,
@@ -369,7 +405,7 @@ function setStatus(msg, type) {
       o: Math.random() * 0.55 + 0.15,
     }));
   };
-  const draw   = () => {
+  const draw = () => {
     cx.clearRect(0, 0, cv.width, cv.height);
     stars.forEach(s => {
       cx.beginPath();
@@ -386,6 +422,6 @@ function setStatus(msg, type) {
   resize(); init(); draw();
 })();
 
-// ── INIT ──
+// Init
 generateFields();
 setStatus("Configure instructions above, then press RUN or STEP.");
