@@ -7,26 +7,42 @@ function parseAll(instructionsRaw) {
     const parts = raw.replace(/,/g, ' ').trim().split(/\s+/);
     const op = norm(parts[0]);
 
-    let dest = null, src1 = null, src2 = null;
+    let dest = null, src1 = null, src2 = null, offset = null;
 
-    if (op === "ADD" || op === "SUB" || op === "MUL" || op === "AND" || op === "OR" || op === "XOR" || op === "SLL" || op === "SRL") {
+    const RTYPE_OPS = ['ADD', 'SUB', 'AND', 'OR', 'SLT', 'SLL', 'SRL', 'MUL', 'XOR'];
+    const ITYPE_OPS = ['ADDI', 'ORI', 'ANDI'];
+
+    if (RTYPE_OPS.includes(op)) {
       dest = norm(parts[1]);
       src1 = norm(parts[2]);
       src2 = norm(parts[3]);
+    } else if (ITYPE_OPS.includes(op)) {
+      dest = norm(parts[1]);
+      src1 = norm(parts[2]);
+      // Third part is immediate, not a register
     } else if (op === "LW") {
       dest = norm(parts[1]);
-      // Format: offset(Rs)
       const mem = norm(parts[2]);
       if (mem) {
-        const m = mem.match(/.*\((.*)\)/);
-        src1 = m ? m[1] : mem;
+        const m = mem.match(/(.*)\((.*)\)/);
+        if (m) {
+          offset = m[1];
+          src1 = m[2];
+        } else {
+          src1 = mem;
+        }
       }
     } else if (op === "SW") {
-      src1 = norm(parts[1]);
+      src1 = norm(parts[1]); // src register
       const mem = norm(parts[2]);
       if (mem) {
-        const m = mem.match(/.*\((.*)\)/);
-        src2 = m ? m[1] : mem;
+        const m = mem.match(/(.*)\((.*)\)/);
+        if (m) {
+          offset = m[1];
+          src2 = m[2]; // base register
+        } else {
+          src2 = mem;
+        }
       }
     }
 
@@ -36,182 +52,188 @@ function parseAll(instructionsRaw) {
       op,
       dest,
       src1,
-      src2
+      src2,
+      offset,
+      label: `${id}: ${raw}`
     });
   });
 
   return parsed;
 }
 
-// Define Pipeline Structure
-function getPipelineStages(type) {
-  if (type === "4-stage") {
-    return ["IF", "ID", "EXE", "MEM/WB"];
-  }
-  // Default to 5-stage
-  return ["IF", "ID", "EXE", "MEM", "WB"];
-}
-
-// RAW Hazard Detection
-function hasRAW(prev, curr) {
-  if (!prev.dest) return false;
-  const dest = prev.dest.toUpperCase();
-  return (curr.src1 && curr.src1.toUpperCase() === dest) ||
-    (curr.src2 && curr.src2.toUpperCase() === dest);
+function getReadRegisters(ins) {
+  if (!ins) return [];
+  const RTYPE_S = ['ADD', 'SUB', 'AND', 'OR', 'SLT', 'SLL', 'SRL', 'MUL', 'XOR'];
+  const ITYPE_S = ['ADDI', 'ORI', 'ANDI'];
+  if (RTYPE_S.includes(ins.op)) return [ins.src1, ins.src2].filter(Boolean);
+  if (ITYPE_S.includes(ins.op)) return [ins.src1].filter(Boolean);
+  if (ins.op === 'LW') return [ins.src1];
+  if (ins.op === 'SW') return [ins.src1, ins.src2].filter(Boolean);
+  return [];
 }
 
 // Engine Flow
 function simulate(input) {
   const parsed = parseAll(input.instructions);
-  const stages = getPipelineStages(input.pipeline);
-  const numStages = stages.length;
+  const n = parsed.length;
+  const numStages = input.pipeline === "4-stage" ? 4 : 5;
+  const forwarding = input.forwarding;
+  const stages = numStages === 5 
+    ? ['IF', 'ID', 'EXE', 'MEM', 'WB'] 
+    : ['IF', 'ID', 'EXE', 'MEM/WB'];
 
-  const table = [];
+  const schedule = [];
   const hazards = [];
 
-  for (let i = 0; i < parsed.length; i++) {
-    const curr = parsed[i];
-    let stageCycles = {};
+  for (let i = 0; i < n; i++) {
+    // Structural constraint: IF of current waits for ID of previous
+    const prevID = i === 0 ? 0 : (schedule[i - 1].ifCycle + 1 + schedule[i - 1].idDelay);
+    const ifCycle = (numStages === 5) ? Math.max(i + 1, prevID) : (i + 1);
+    
+    let idDelay = 0;
+    let exDelay = 0;
+    let fwdUsed = false;
 
-    // Ideal Schedule (No hazards, perfectly pipelined)
-    let ideal_IF = (i === 0) ? 1 : table[i - 1].stageCycles["IF"] + 1;
-    stageCycles[stages[0]] = ideal_IF;
-    for (let idx = 1; idx < numStages; idx++) {
-      stageCycles[stages[idx]] = stageCycles[stages[idx - 1]] + 1;
-    }
+    for (let p = 0; p < i; p++) {
+      const prod = parsed[p];
+      const prodDest = prod.dest;
+      if (!prodDest || !getReadRegisters(parsed[i]).includes(prodDest)) continue;
 
-    // Structural Constraints (In-order pipeline)
-    if (i > 0) {
-      const prevCycles = table[i - 1].stageCycles;
-
-      // Instruction cannot enter a stage until previous instruction enters the NEXT stage.
-      // This means Stage_j(idx) >= PrevStage(idx+1)
-      stageCycles[stages[0]] = Math.max(stageCycles[stages[0]], prevCycles[stages[1]]);
-      for (let idx = 1; idx < numStages; idx++) {
-        const stg = stages[idx];
-        // Cascade structural delay
-        stageCycles[stg] = Math.max(stageCycles[stg], stageCycles[stages[idx - 1]] + 1);
-        // Structural constraint vs previous instruction
-        if (idx < numStages - 1) {
-          stageCycles[stg] = Math.max(stageCycles[stg], prevCycles[stages[idx + 1]]);
-        }
+      // Shadowing check: most recent write wins
+      let shadowed = false;
+      for (let k = p + 1; k < i; k++) {
+        if (parsed[k].dest === prodDest) { shadowed = true; break; }
       }
-    }
+      if (shadowed) continue;
 
-    let hazardType = null;
-    let hazardFrom = null;
-    let hazardReg = null;
+      const ps = schedule[p];
+      const prodID = ps.ifCycle + 1 + ps.idDelay;
+      const prodEX = prodID + 1 + ps.exDelay;
+      const prodMEM = prodEX + 1;
+      const prodWB = numStages === 5 ? prodMEM + 1 : prodMEM;
+      const isLoad = prod.op === 'LW';
 
-    // Data Hazards
-    for (let j = 0; j < i; j++) {
-      const prev = parsed[j];
-      const prevEntry = table[j];
-
-      if (hasRAW(prev, curr)) {
-        let shadowed = false;
-        for (let k = j + 1; k < i; k++) {
-          if (parsed[k].dest === prev.dest) { shadowed = true; break; }
-        }
-
-        if (!shadowed) {
-          if (!input.forwarding) {
-            // No Forwarding: Instruction must wait in IF until data is written to registers.
-            // Stall AFTER IF (Case A).
-            const avail = numStages === 5 ? prevEntry.stageCycles["WB"] : prevEntry.stageCycles["MEM/WB"];
-            const requiredID = avail + 1;
-
-            if (requiredID > stageCycles["ID"]) {
-              stageCycles["ID"] = requiredID;
-              if (!hazardType) { hazardType = "RAW"; hazardFrom = prev.id; hazardReg = prev.dest; }
+      if (numStages === 5) {
+        if (forwarding) {
+          if (isLoad) {
+            // Load-use: consumerID >= prodID + 2 (1 stall)
+            const minID = prodID + 2;
+            const needed = minID - (ifCycle + 1);
+            if (needed > idDelay) idDelay = needed;
+            if (needed > 0) {
+              hazards.push({ type: "RAW", from: prod.id, to: parsed[i].id, register: prodDest, resolvedBy: "stall", delay: needed });
             }
           } else {
-            // Forwarding: Instruction must wait in IF until data is available in EXE/MEM stages.
-            // Stall AFTER IF (Case A).
-            let avail;
-            if (prev.op === "LW") {
-              avail = numStages === 5 ? prevEntry.stageCycles["MEM"] : prevEntry.stageCycles["MEM/WB"];
-            } else {
-              avail = prevEntry.stageCycles["EXE"];
+            // ALU: consumerEX >= prodEX + 1 (0 stalls)
+            const minEX = prodEX + 1;
+            const refNeeded = minEX - (ifCycle + 2); 
+            if (refNeeded > idDelay) idDelay = refNeeded;
+            fwdUsed = true;
+            hazards.push({ type: "RAW", from: prod.id, to: parsed[i].id, register: prodDest, resolvedBy: "forwarding", delay: 0 });
+          }
+        } else {
+          // No forwarding: consumerID >= prodWB + 1
+          const minID = prodWB + 1;
+          const needed = minID - (ifCycle + 1);
+          if (needed > idDelay) idDelay = needed;
+          if (needed > 0) {
+            hazards.push({ type: "RAW", from: prod.id, to: parsed[i].id, register: prodDest, resolvedBy: "stall", delay: needed });
+          }
+        }
+      } else {
+        // 4-stage
+        if (forwarding) {
+          if (isLoad) {
+            // 4-stage fwd LW: stall AFTER ID. consumerEX >= prodMEM + 1
+            const minEX = prodMEM + 1;
+            const curEX = ifCycle + 2; // Tentative EX without exDelay
+            const needed = minEX - curEX;
+            if (needed > exDelay) exDelay = needed;
+            if (needed > 0) {
+              hazards.push({ type: "RAW", from: prod.id, to: parsed[i].id, register: prodDest, resolvedBy: "stall", delay: needed });
             }
-            const requiredID = avail;
-
-            if (requiredID > stageCycles["ID"]) {
-              stageCycles["ID"] = requiredID;
-              if (!hazardType) { hazardType = "RAW"; hazardFrom = prev.id; hazardReg = prev.dest; }
-            }
+          } else {
+            // ALU: consumerEX >= prodEX + 1
+            const minEX = prodEX + 1;
+            const needed = minEX - (ifCycle + 2);
+            if (needed > idDelay) idDelay = needed;
+            fwdUsed = true;
+            hazards.push({ type: "RAW", from: prod.id, to: parsed[i].id, register: prodDest, resolvedBy: "forwarding", delay: 0 });
+          }
+        } else {
+          // No forwarding: consumerID >= prodWB + 1
+          const minID = prodWB + 1;
+          const needed = minID - (ifCycle + 1);
+          if (needed > idDelay) idDelay = needed;
+          if (needed > 0) {
+            hazards.push({ type: "RAW", from: prod.id, to: parsed[i].id, register: prodDest, resolvedBy: "stall", delay: needed });
           }
         }
       }
     }
 
-    // Cascade Data Hazard Delays Down the Pipeline
-    for (let idx = 1; idx < numStages; idx++) {
-      const stg = stages[idx];
-      stageCycles[stg] = Math.max(stageCycles[stg], stageCycles[stages[idx - 1]] + 1);
+    schedule.push({
+      ifCycle,
+      idDelay: Math.max(0, idDelay),
+      exDelay: Math.max(0, exDelay),
+      fwdUsed
+    });
+  }
+
+  // Build the table structure expected by app.js
+  const table = [];
+  let totalCycles = 0;
+
+  for (let i = 0; i < n; i++) {
+    const s = schedule[i];
+    const idCycle = s.ifCycle + 1 + s.idDelay;
+    const exCycle = idCycle + 1 + s.exDelay;
+    const lastCycle = exCycle + (stages.length - 3);
+    if (lastCycle > totalCycles) totalCycles = lastCycle;
+  }
+
+  for (let i = 0; i < n; i++) {
+    const s = schedule[i];
+    const idCycle = s.ifCycle + 1 + s.idDelay;
+    const exCycle = idCycle + 1 + s.exDelay;
+    
+    const row = new Array(totalCycles + 1).fill("");
+    const stageCycles = {};
+
+    // IF
+    row[s.ifCycle] = "IF";
+    stageCycles["IF"] = s.ifCycle;
+
+    // Stalls before ID
+    for (let c = s.ifCycle + 1; c < idCycle; c++) {
+      row[c] = "STALL";
     }
 
-    // Calculate Total Stalls
-    let stallCount = 0;
-    for (let idx = 1; idx < numStages; idx++) {
-      stallCount += (stageCycles[stages[idx]] - stageCycles[stages[idx - 1]] - 1);
+    // ID
+    row[idCycle] = "ID";
+    stageCycles["ID"] = idCycle;
+
+    // Stalls after ID
+    for (let c = idCycle + 1; c < exCycle; c++) {
+      row[c] = "STALL";
     }
 
-    if (stallCount > 0 && hazardFrom !== null) {
-      hazards.push({
-        type: hazardType,
-        from: hazardFrom,
-        to: curr.id,
-        register: hazardReg,
-        resolvedBy: "stall",
-        delay: stallCount
-      });
-    } else if (input.forwarding) {
-      for (let j = 0; j < i; j++) {
-        const prev = parsed[j];
-        if (hasRAW(prev, curr)) {
-          let shadowed = false;
-          for (let k = j + 1; k < i; k++) {
-            if (parsed[k].dest === prev.dest) { shadowed = true; break; }
-          }
-          if (!shadowed) {
-            hazards.push({
-              type: "RAW",
-              from: prev.id,
-              to: curr.id,
-              register: prev.dest,
-              resolvedBy: "forwarding",
-              delay: 0
-            });
-            break;
-          }
-        }
-      }
-    }
+    // EXE
+    row[exCycle] = "EXE";
+    stageCycles["EXE"] = exCycle;
 
-    // Build Visual Table With Stalls
-    const lastStageCycle = stageCycles[stages[numStages - 1]];
-    const row = new Array(lastStageCycle + 1).fill("");
-
-    // Place actual stages
-    for (let idx = 0; idx < numStages; idx++) {
-      const stg = stages[idx];
-      row[stageCycles[stg]] = stg;
-    }
-
-    // Fill gaps with STALL
-    for (let idx = 1; idx < numStages; idx++) {
-      const prevStgCycle = stageCycles[stages[idx - 1]];
-      const currStgCycle = stageCycles[stages[idx]];
-      for (let c = prevStgCycle + 1; c < currStgCycle; c++) {
-        row[c] = "STALL";
-      }
+    // Remaining stages
+    for (let st = 3; st < stages.length; st++) {
+      const c = exCycle + (st - 2);
+      row[c] = stages[st];
+      stageCycles[stages[st]] = c;
     }
 
     table.push({
-      instruction: curr,
+      instruction: parsed[i],
       stages: row,
       stageCycles: stageCycles,
-      stallCount: stallCount
+      stallCount: s.idDelay + s.exDelay
     });
   }
 
@@ -223,5 +245,4 @@ function simulate(input) {
   };
 }
 
-// Export for browser
 window.simulateEngine = simulate;
